@@ -1,0 +1,90 @@
+[package]
+name = "kagikanri"
+version = "0.1.0"
+edition = "2021"
+description = "Kagikanri - A modern, secure, self-hosted password manager"
+authors = ["Your Name <your.email@example.com>"]
+license = "MIT"
+
+[dependencies]
+# Web framework
+axum = { version = "0.7", features = ["macros"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["fs", "cors", "trace"] }
+tokio = { version = "1.0", features = ["full"] }
+hyper = "1.0"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Async runtime and utilities
+futures = "0.3"
+
+# Database (SQLCipher for passkey storage)
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid"] }
+
+# Cryptography
+ring = "0.17"
+argon2 = "0.5"
+rand = "0.8"
+
+# Git operations
+git2 = "0.18"
+
+# Environment and configuration
+clap = { version = "4.0", features = ["derive", "env"] }
+dotenvy = "0.15"
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID generation
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# HTTP client for health checks
+reqwest = { version = "0.12", features = ["json"] }
+
+# WebAuthn (for passkey support)
+webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
+
+# Process execution (for pass CLI)
+tokio-process = "0.2"
+
+# URL parsing
+url = "2.5"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Password hashing
+bcrypt = "0.15"
+
+# Base64 encoding/decoding
+base64 = "0.22"
+
+# TOTP support
+totp-lite = "2.0"
+base32 = "0.4"
+
+# Hex encoding/decoding
+hex = "0.4"
+
+[build-dependencies]
+# For embedding frontend assets
+include_dir = "0.7"
+
+[[bin]]
+name = "simple_main"
+path = "src/simple_main.rs"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"
