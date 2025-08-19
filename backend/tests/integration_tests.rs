@@ -1,10 +1,6 @@
 use axum::http::{Method, StatusCode};
 use axum_test::TestServer;
-use kagikanri::{
-    config::{AuthConfig, Config, DatabaseConfig, GitConfig, PassConfig, ServerConfig},
-    create_router,
-    state::AppState,
-};
+use kagikanri::config::{AuthConfig, Config, DatabaseConfig, GitConfig, PassConfig, ServerConfig};
 use serde_json::json;
 use serial_test::serial;
 use std::path::PathBuf;
@@ -14,7 +10,7 @@ async fn create_test_app() -> (TestServer, TempDir) {
     let temp_dir = TempDir::new().expect("Failed to create temp directory");
     let temp_path = temp_dir.path().to_string_lossy().to_string();
 
-    let config = Config {
+    let _config = Config {
         server: ServerConfig {
             host: "127.0.0.1".to_string(),
             port: 0, // Use any available port for testing
@@ -280,7 +276,8 @@ async fn test_spa_serving() {
         .await;
 
     response.assert_status_ok();
-    response.assert_text_contains("Kagikanri");
+    let text = response.text();
+    assert!(text.contains("Kagikanri"));
 }
 
 #[tokio::test]
@@ -289,8 +286,7 @@ async fn test_cors_headers() {
     let (server, _temp_dir) = create_test_app().await;
 
     let response = server
-        .method(Method::OPTIONS)
-        .uri("/api/health")
+        .method(Method::OPTIONS, "/api/health")
         .await;
 
     // Should have CORS headers due to CorsLayer::permissive()
@@ -304,8 +300,8 @@ async fn test_invalid_json_request() {
 
     let response = server
         .post("/api/auth/login")
-        .header("content-type", "application/json")
-        .body("invalid json")
+        .content_type("application/json")
+        .text("invalid json")
         .await;
 
     response.assert_status(StatusCode::BAD_REQUEST);
@@ -357,8 +353,8 @@ async fn test_content_type_validation() {
     // Test posting to a JSON endpoint without proper content type
     let response = server
         .post("/api/auth/login")
-        .header("content-type", "text/plain")
-        .body("not json")
+        .content_type("text/plain")
+        .text("not json")
         .await;
 
     response.assert_status(StatusCode::BAD_REQUEST);
