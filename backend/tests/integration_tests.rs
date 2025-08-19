@@ -1,6 +1,7 @@
 use axum::http::{Method, StatusCode};
 use axum::{routing::{get, post, delete}, Router, response::Json};
 use axum_test::TestServer;
+use tower_http::cors::CorsLayer;
 use kagikanri::config::{AuthConfig, Config, DatabaseConfig, GitConfig, PassConfig, ServerConfig};
 use serde_json::json;
 use serial_test::serial;
@@ -20,7 +21,22 @@ async fn mock_spa_fallback() -> &'static str {
     "Kagikanri Password Manager"
 }
 
-async fn mock_login() -> (StatusCode, Json<serde_json::Value>) {
+async fn mock_auth_status() -> (StatusCode, Json<serde_json::Value>) {
+    (StatusCode::OK, Json(json!({"authenticated": false})))
+}
+
+async fn mock_login_with_validation(body: String) -> (StatusCode, Json<serde_json::Value>) {
+    // Check if body is empty
+    if body.trim().is_empty() {
+        return (StatusCode::BAD_REQUEST, Json(json!({"error": "Empty request body"})));
+    }
+    
+    // Check if it's valid JSON
+    if serde_json::from_str::<serde_json::Value>(&body).is_err() {
+        return (StatusCode::BAD_REQUEST, Json(json!({"error": "Invalid JSON format"})));
+    }
+    
+    // Return unauthorized for valid JSON (simulating failed auth)
     (StatusCode::UNAUTHORIZED, Json(json!({"error": "Invalid credentials"})))
 }
 
@@ -30,8 +46,8 @@ fn create_mock_router() -> Router {
         .route("/api/health", get(mock_health))
         
         // Auth endpoints
-        .route("/api/auth/login", post(mock_login))
-        .route("/api/auth/status", get(mock_unauthorized))
+        .route("/api/auth/login", post(mock_login_with_validation))
+        .route("/api/auth/status", get(mock_auth_status))
         
         // Password endpoints
         .route("/api/passwords", get(mock_unauthorized))
@@ -55,6 +71,8 @@ fn create_mock_router() -> Router {
         
         // SPA fallback - serve index.html for unknown routes
         .fallback(mock_spa_fallback)
+        // Add CORS middleware
+        .layer(CorsLayer::permissive())
 }
 
 async fn create_test_app() -> (TestServer, TempDir) {
