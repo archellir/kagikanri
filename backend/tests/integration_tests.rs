@@ -1,5 +1,5 @@
 use axum::http::{Method, StatusCode};
-use axum::{routing::{get, post, delete}, Router, response::Json};
+use axum::{routing::{get, post, delete}, Router, response::{Json, IntoResponse, Response}, extract::Request as AxumRequest, body::Body};
 use axum_test::TestServer;
 use tower_http::cors::CorsLayer;
 use kagikanri::config::{AuthConfig, Config, DatabaseConfig, GitConfig, PassConfig, ServerConfig};
@@ -21,6 +21,22 @@ async fn mock_spa_fallback() -> &'static str {
     "Kagikanri Password Manager"
 }
 
+async fn mock_api_not_found() -> (StatusCode, Json<serde_json::Value>) {
+    (StatusCode::NOT_FOUND, Json(json!({"error": "API endpoint not found"})))
+}
+
+async fn mock_fallback_handler(req: AxumRequest<Body>) -> Response<Body> {
+    let path = req.uri().path();
+    
+    if path.starts_with("/api/") {
+        // API routes that don't exist should return 404
+        (StatusCode::NOT_FOUND, Json(json!({"error": "API endpoint not found"}))).into_response()
+    } else {
+        // Non-API routes should serve the SPA
+        mock_spa_fallback().await.into_response()
+    }
+}
+
 async fn mock_auth_status() -> (StatusCode, Json<serde_json::Value>) {
     (StatusCode::OK, Json(json!({"authenticated": false})))
 }
@@ -32,11 +48,28 @@ async fn mock_login_with_validation(body: String) -> (StatusCode, Json<serde_jso
     }
     
     // Check if it's valid JSON
-    if serde_json::from_str::<serde_json::Value>(&body).is_err() {
-        return (StatusCode::BAD_REQUEST, Json(json!({"error": "Invalid JSON format"})));
+    let json_value = match serde_json::from_str::<serde_json::Value>(&body) {
+        Ok(val) => val,
+        Err(_) => return (StatusCode::BAD_REQUEST, Json(json!({"error": "Invalid JSON format"})))
+    };
+    
+    // Check if required fields are present
+    if !json_value.is_object() {
+        return (StatusCode::BAD_REQUEST, Json(json!({"error": "Request must be a JSON object"})));
     }
     
-    // Return unauthorized for valid JSON (simulating failed auth)
+    let obj = json_value.as_object().unwrap();
+    
+    // Check for required fields
+    if !obj.contains_key("master_password") {
+        return (StatusCode::BAD_REQUEST, Json(json!({"error": "Missing master_password field"})));
+    }
+    
+    if !obj.contains_key("totp_code") {
+        return (StatusCode::BAD_REQUEST, Json(json!({"error": "Missing totp_code field"})));
+    }
+    
+    // Return unauthorized for valid but incorrect credentials
     (StatusCode::UNAUTHORIZED, Json(json!({"error": "Invalid credentials"})))
 }
 
@@ -58,6 +91,8 @@ fn create_mock_router() -> Router {
         // OTP endpoints  
         .route("/api/otp", get(mock_unauthorized))
         .route("/api/otp", post(mock_unauthorized))
+        .route("/api/otp/:name", get(mock_unauthorized))
+        .route("/api/otp/:name", post(mock_unauthorized))
         
         // Sync endpoints
         .route("/api/sync", post(mock_unauthorized))
@@ -69,8 +104,8 @@ fn create_mock_router() -> Router {
         .route("/api/passkeys/register/start", post(mock_unauthorized))
         .route("/api/passkeys/register/finish", post(mock_unauthorized))
         
-        // SPA fallback - serve index.html for unknown routes
-        .fallback(mock_spa_fallback)
+        // SPA fallback - serve index.html for unknown routes, 404 for unknown API routes
+        .fallback(mock_fallback_handler)
         // Add CORS middleware
         .layer(CorsLayer::permissive())
 }
