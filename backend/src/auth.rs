@@ -3,10 +3,10 @@ use crate::{
     error::{AppError, AppResult},
     pass::PassInterface,
 };
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use totp_lite::{totp, Sha1};
+use tracing::{debug, info, warn};
 
 #[derive(Debug, Clone)]
 pub struct AuthService {
@@ -14,23 +14,23 @@ pub struct AuthService {
     pass: Arc<PassInterface>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct LoginRequest {
     pub master_password: String,
     pub totp_code: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct LoginResponse {
-    pub session_id: String,
-    pub expires_at: DateTime<Utc>,
+    pub success: bool,
+    pub user_id: String,
+    pub expires_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct AuthStatus {
-    pub authenticated: bool,
     pub user_id: Option<String>,
-    pub expires_at: Option<DateTime<Utc>>,
+    pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl AuthService {
@@ -39,97 +39,221 @@ impl AuthService {
     }
 
     pub async fn authenticate(&self, request: LoginRequest) -> AppResult<LoginResponse> {
+        info!("Attempting authentication");
+        
         // Verify master password
         self.verify_master_password(&request.master_password).await?;
         
         // Verify TOTP code
-        self.verify_totp_code(&request.totp_code).await?;
+        self.verify_totp(&request.totp_code).await?;
         
-        // Generate session
-        let session_id = uuid::Uuid::new_v4().to_string();
-        let expires_at = Utc::now() + chrono::Duration::hours(self.config.session_timeout_hours as i64);
+        let expires_at = chrono::Utc::now() + chrono::Duration::hours(self.config.session_timeout_hours as i64);
         
+        info!("Authentication successful");
         Ok(LoginResponse {
-            session_id,
+            success: true,
+            user_id: "user".to_string(), // Simple single-user system
             expires_at,
         })
     }
 
-    async fn verify_master_password(&self, provided_password: &str) -> AppResult<()> {
-        // Get the stored master password from pass
-        let stored_password = self.pass
-            .get_password(&self.config.master_password_path)
-            .await?
-            .password;
-        
-        if provided_password != stored_password {
-            return Err(AppError::AuthenticationFailed(
-                "Invalid master password".to_string(),
-            ));
+    pub async fn get_auth_status(&self, session_id: Option<String>) -> AuthStatus {
+        // Simple implementation - in a real system you'd check the session store
+        if session_id.is_some() {
+            AuthStatus {
+                user_id: Some("user".to_string()),
+                expires_at: Some(chrono::Utc::now() + chrono::Duration::hours(self.config.session_timeout_hours as i64)),
+            }
+        } else {
+            AuthStatus {
+                user_id: None,
+                expires_at: None,
+            }
         }
-        
-        Ok(())
     }
 
-    async fn verify_totp_code(&self, provided_code: &str) -> AppResult<()> {
-        // Get the TOTP secret from pass
+    async fn verify_master_password(&self, provided_password: &str) -> AppResult<()> {
+        debug!("Verifying master password");
+        
+        let stored_password = self.pass
+            .get_password(&self.config.master_password_path)
+            .await?;
+        
+        if provided_password == stored_password.password {
+            Ok(())
+        } else {
+            Err(AppError::AuthenticationFailed("Invalid master password".to_string()))
+        }
+    }
+
+    async fn verify_totp(&self, provided_code: &str) -> AppResult<()> {
+        debug!("Verifying TOTP code");
+        
+        // Get TOTP secret from pass store
         let totp_entry = self.pass
             .get_password(&self.config.totp_path)
             .await?;
         
-        let secret = totp_entry.password;
+        let secret_base32 = &totp_entry.password;
         
-        // Decode the base32 secret
-        let secret_bytes = base32::decode(base32::Alphabet::RFC4648 { padding: true }, &secret)
-            .ok_or_else(|| AppError::AuthenticationFailed("Invalid TOTP secret".to_string()))?;
+        // Decode base32 secret
+        let secret_bytes = base32::decode(base32::Alphabet::RFC4648 { padding: true }, secret_base32)
+            .ok_or_else(|| AppError::AuthenticationFailed("Invalid TOTP secret format".to_string()))?;
         
-        // Generate current TOTP code  
+        // Get current time window
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs();
         
-        let current_code = totp::<Sha1>(&secret_bytes, current_time / 30);
+        // Check current window and previous window (to account for clock drift)
+        let windows = [current_time / 30, (current_time / 30) - 1];
         
-        // Also check the previous and next time windows for clock skew
-        let prev_code = totp::<Sha1>(&secret_bytes, (current_time - 30) / 30);
-        let next_code = totp::<Sha1>(&secret_bytes, (current_time + 30) / 30);
-        
-        if provided_code != current_code && provided_code != prev_code && provided_code != next_code {
-            return Err(AppError::AuthenticationFailed(
-                "Invalid TOTP code".to_string(),
-            ));
+        for window in windows {
+            let expected_code = totp::<Sha1>(&secret_bytes, window);
+            if provided_code == expected_code {
+                return Ok(());
+            }
         }
         
-        Ok(())
+        Err(AppError::AuthenticationFailed("Invalid TOTP code".to_string()))
     }
 
     pub fn extract_session_from_header(&self, auth_header: Option<&str>) -> Option<String> {
-        auth_header
-            .and_then(|header| header.strip_prefix("Bearer "))
-            .map(|token| token.to_string())
-    }
-
-    pub async fn get_auth_status(&self, session_id: Option<String>) -> AuthStatus {
-        match session_id {
-            Some(id) if !id.is_empty() => {
-                // In a real implementation, you'd check the session store
-                // For now, we'll assume any non-empty session ID is valid
-                AuthStatus {
-                    authenticated: true,
-                    user_id: Some("user".to_string()),
-                    expires_at: Some(Utc::now() + chrono::Duration::hours(24)),
-                }
+        if let Some(header_value) = auth_header {
+            if let Some(token) = header_value.strip_prefix("Bearer ") {
+                return Some(token.to_string());
             }
-            _ => AuthStatus {
-                authenticated: false,
-                user_id: None,
-                expires_at: None,
-            },
         }
+        None
     }
 }
 
-// Add required dependencies to Cargo.toml:
-// totp-lite = "2.0"
-// base32 = "0.4"
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{AuthConfig, PassConfig};
+    use std::path::PathBuf;
+
+    fn create_test_config() -> AuthConfig {
+        AuthConfig {
+            master_password_path: "kagikanri/master-password".to_string(),
+            totp_path: "kagikanri/totp".to_string(),
+            session_timeout_hours: 24,
+        }
+    }
+
+    #[test]
+    fn test_extract_session_from_header_success() {
+        let config = create_test_config();
+        // Create a dummy PassInterface for testing
+        let pass_config = PassConfig {
+            store_dir: PathBuf::from("/tmp/test"),
+            gpg_key_id: Some("test-key-id".to_string()),
+        };
+        let pass_interface = PassInterface::new(pass_config).unwrap();
+        let auth_service = AuthService::new(config, Arc::new(pass_interface));
+
+        let session_id = auth_service.extract_session_from_header(Some("Bearer abc123def456"));
+        assert_eq!(session_id, Some("abc123def456".to_string()));
+    }
+
+    #[test]
+    fn test_extract_session_from_header_invalid_format() {
+        let config = create_test_config();
+        let pass_config = PassConfig {
+            store_dir: PathBuf::from("/tmp/test"),
+            gpg_key_id: Some("test-key-id".to_string()),
+        };
+        let pass_interface = PassInterface::new(pass_config).unwrap();
+        let auth_service = AuthService::new(config, Arc::new(pass_interface));
+
+        let session_id = auth_service.extract_session_from_header(Some("InvalidFormat abc123"));
+        assert_eq!(session_id, None);
+    }
+
+    #[test]
+    fn test_extract_session_from_header_none() {
+        let config = create_test_config();
+        let pass_config = PassConfig {
+            store_dir: PathBuf::from("/tmp/test"),
+            gpg_key_id: Some("test-key-id".to_string()),
+        };
+        let pass_interface = PassInterface::new(pass_config).unwrap();
+        let auth_service = AuthService::new(config, Arc::new(pass_interface));
+
+        let session_id = auth_service.extract_session_from_header(None);
+        assert_eq!(session_id, None);
+    }
+
+    #[test]
+    fn test_get_auth_status_with_session() {
+        let config = create_test_config();
+        let pass_config = PassConfig {
+            store_dir: PathBuf::from("/tmp/test"),
+            gpg_key_id: Some("test-key-id".to_string()),
+        };
+        let pass_interface = PassInterface::new(pass_config).unwrap();
+        let auth_service = AuthService::new(config, Arc::new(pass_interface));
+
+        let status = tokio_test::block_on(auth_service.get_auth_status(Some("session123".to_string())));
+        assert!(status.user_id.is_some());
+        assert_eq!(status.user_id.unwrap(), "user");
+        assert!(status.expires_at.is_some());
+    }
+
+    #[test]
+    fn test_get_auth_status_without_session() {
+        let config = create_test_config();
+        let pass_config = PassConfig {
+            store_dir: PathBuf::from("/tmp/test"),
+            gpg_key_id: Some("test-key-id".to_string()),
+        };
+        let pass_interface = PassInterface::new(pass_config).unwrap();
+        let auth_service = AuthService::new(config, Arc::new(pass_interface));
+
+        let status = tokio_test::block_on(auth_service.get_auth_status(None));
+        assert!(status.user_id.is_none());
+        assert!(status.expires_at.is_none());
+    }
+
+    #[test]
+    fn test_totp_validation_logic() {
+        // Test TOTP calculation logic directly
+        let secret = "JBSWY3DPEHPK3PXP"; // "Hello!" in base32
+        let secret_bytes = base32::decode(base32::Alphabet::RFC4648 { padding: true }, secret).unwrap();
+        
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        
+        let current_window = current_time / 30;
+        let code = totp::<Sha1>(&secret_bytes, current_window);
+        
+        // Code should be 6 digits
+        assert_eq!(code.len(), 6);
+        assert!(code.chars().all(|c| c.is_ascii_digit()));
+        
+        // Different time windows should produce different codes
+        let previous_code = totp::<Sha1>(&secret_bytes, current_window - 1);
+        let next_code = totp::<Sha1>(&secret_bytes, current_window + 1);
+        
+        // These might occasionally be equal due to time window overlap, but typically different
+        assert_ne!(code, previous_code);
+        assert_ne!(code, next_code);
+    }
+
+    #[test]
+    fn test_base32_decoding() {
+        // Test valid base32
+        let valid_secret = "JBSWY3DPEHPK3PXP";
+        let result = base32::decode(base32::Alphabet::RFC4648 { padding: true }, valid_secret);
+        assert!(result.is_some());
+        
+        // Test invalid base32
+        let invalid_secret = "INVALID_BASE32!@#";
+        let result = base32::decode(base32::Alphabet::RFC4648 { padding: true }, invalid_secret);
+        assert!(result.is_none());
+    }
+}

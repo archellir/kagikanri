@@ -75,6 +75,15 @@ base32 = "0.4"
 # Hex encoding/decoding
 hex = "0.4"
 
+[dev-dependencies]
+# Testing framework
+tokio-test = "0.4"
+axum-test = "14.0"
+tempfile = "3.0"
+serial_test = "3.0"
+mockall = "0.12"
+pretty_assertions = "1.4"
+
 [build-dependencies]
 # For embedding frontend assets
 include_dir = "0.7"
