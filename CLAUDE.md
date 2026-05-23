@@ -1,16 +1,16 @@
 # Kagikanri (鍵管理) - Password Manager Project
 
-## 🔐 Project Overview
+## Project Overview
 
 **Kagikanri** is a modern, secure, self-hosted password manager that provides a beautiful web interface for the battle-tested `pass` password store, with optional passkey support for enhanced security.
 
-### 🏗️ Architecture
+### Architecture
 - **Backend**: Rust with Axum web framework, SQLCipher database, Git2 sync
 - **Frontend**: Svelte 5 + TypeScript + Tailwind CSS SPA
 - **Security**: GPG encryption via pass, TOTP authentication, encrypted passkey storage
 - **Deployment**: Docker containerization with embedded frontend
 
-### 📂 Project Structure
+### Project Structure
 ```
 kagikanri/
 ├── backend/           # Rust backend (Axum + API)
@@ -49,7 +49,7 @@ kagikanri/
 └── README.md          # Project documentation
 ```
 
-### 🛠️ Development Commands
+### Development Commands
 
 **Frontend Development:**
 ```bash
@@ -83,7 +83,7 @@ export PASSWORD_STORE_DIR="/path/to/your/pass/store"
 cd backend && cargo run
 ```
 
-### 🔑 Key Environment Variables
+### Key Environment Variables
 
 | Variable | Purpose | Example |
 |----------|---------|---------|
@@ -93,7 +93,7 @@ cd backend && cargo run
 | `MASTER_PASSWORD_PATH` | Path to master password in pass | `kagikanri/master-password` |
 | `TOTP_PATH` | Path to TOTP secret in pass | `kagikanri/totp` |
 
-### 🧪 Testing & Verification
+### Testing & Verification
 
 **Test backend API:**
 ```bash
@@ -115,7 +115,7 @@ ls -la frontend/build/
 curl http://localhost:8080/
 ```
 
-### 🏭 Production Deployment
+### Production Deployment
 
 **Docker Build:**
 ```bash
@@ -135,7 +135,7 @@ docker run -d \
   kagikanri:latest
 ```
 
-### 🔧 Common Development Tasks
+### Common Development Tasks
 
 **Add new API endpoint:**
 1. Create handler in `backend/src/handlers/`
@@ -156,7 +156,7 @@ cd frontend && pnpm update
 cd backend && cargo update
 ```
 
-### 🚨 Troubleshooting
+### Troubleshooting
 
 **Frontend build fails:**
 - Check Node.js version (requires 20+)

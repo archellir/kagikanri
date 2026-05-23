@@ -2,18 +2,18 @@
 
 Kagikanri is a modern, secure, self-hosted password manager that provides a beautiful web interface for the battle-tested `pass` password store, with optional passkey support for enhanced security.
 
-## 🔐 Features
+## Features
 
-- **🔒 Battle-tested Security**: Built on top of GPG-encrypted `pass` password store
-- **🌐 Modern Web UI**: Beautiful Svelte 5 + TypeScript frontend with Tailwind CSS
-- **🔑 Passkey Support**: Store and manage WebAuthn passkeys for other websites
-- **🔄 Git Synchronization**: Automatic Git sync for password store backup
-- **📱 Responsive Design**: Works seamlessly on desktop and mobile
-- **🔐 TOTP Integration**: Built-in support for 2FA codes via pass-otp
-- **⚡ High Performance**: Rust backend with <100MB RAM usage
-- **🐳 Container Ready**: Docker and Kubernetes deployment support
+- **Battle-tested Security**: Built on top of GPG-encrypted `pass` password store
+- **Modern Web UI**: Beautiful Svelte 5 + TypeScript frontend with Tailwind CSS
+- **Passkey Support**: Store and manage WebAuthn passkeys for other websites
+- **Git Synchronization**: Automatic Git sync for password store backup
+- **Responsive Design**: Works seamlessly on desktop and mobile
+- **TOTP Integration**: Built-in support for 2FA codes via pass-otp
+- **High Performance**: Rust backend with <100MB RAM usage
+- **Container Ready**: Docker and Kubernetes deployment support
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
@@ -28,7 +28,7 @@ Kagikanri is a modern, secure, self-hosted password manager that provides a beau
                        └─────────────────┘
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -89,21 +89,21 @@ docker run -d \
   kagikanri:latest
 ```
 
-## ⚙️ Configuration
+## Configuration
 
 ### Environment Variables
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `GIT_REPO_URL` | ✅ | - | Git repository URL for password store |
-| `GIT_ACCESS_TOKEN` | ✅ | - | Git access token for private repos |
-| `DATABASE_ENCRYPTION_KEY` | ✅ | - | 32-byte hex key for passkey database |
-| `MASTER_PASSWORD_PATH` | ❌ | `kagikanri/master-password` | Path to master password in pass store |
-| `TOTP_PATH` | ❌ | `kagikanri/totp` | Path to TOTP secret in pass store |
-| `PORT` | ❌ | `8080` | Server port |
-| `PASSWORD_STORE_DIR` | ❌ | `/data/password-store` | Pass store directory |
-| `DATABASE_URL` | ❌ | `sqlite:///data/passkeys.db` | Passkey database URL |
-| `SYNC_INTERVAL_MINUTES` | ❌ | `5` | Git sync interval |
+| `GIT_REPO_URL` | Yes | - | Git repository URL for password store |
+| `GIT_ACCESS_TOKEN` | Yes | - | Git access token for private repos |
+| `DATABASE_ENCRYPTION_KEY` | Yes | - | 32-byte hex key for passkey database |
+| `MASTER_PASSWORD_PATH` | No | `kagikanri/master-password` | Path to master password in pass store |
+| `TOTP_PATH` | No | `kagikanri/totp` | Path to TOTP secret in pass store |
+| `PORT` | No | `8080` | Server port |
+| `PASSWORD_STORE_DIR` | No | `/data/password-store` | Pass store directory |
+| `DATABASE_URL` | No | `sqlite:///data/passkeys.db` | Passkey database URL |
+| `SYNC_INTERVAL_MINUTES` | No | `5` | Git sync interval |
 
 ### Pass Store Setup
 
@@ -128,7 +128,7 @@ docker run -d \
    pass git push -u origin master
    ```
 
-## 🔐 Security
+## Security
 
 ### Authentication Flow
 
@@ -146,15 +146,15 @@ docker run -d \
 
 ### Security Best Practices
 
-- ✅ GPG-encrypted password storage via pass
-- ✅ Database encryption for passkey storage
-- ✅ No plaintext secrets in logs
-- ✅ Secure session management
-- ✅ Git repository encryption
-- ✅ Container security hardening
-- ✅ Non-root container execution
+- GPG-encrypted password storage via pass
+- Database encryption for passkey storage
+- No plaintext secrets in logs
+- Secure session management
+- Git repository encryption
+- Container security hardening
+- Non-root container execution
 
-## 📱 Usage
+## Usage
 
 ### Web Interface
 
@@ -177,7 +177,7 @@ The backend provides a REST API:
 - `POST /api/sync` - Trigger Git sync
 - `GET /api/health` - Health check
 
-## 🔧 Development
+## Development
 
 ### Project Structure
 
@@ -224,14 +224,14 @@ kagikanri/
 4. Add tests if applicable
 5. Submit a pull request
 
-## 📊 Performance
+## Performance
 
 - **Memory Usage**: <100MB RAM
 - **Build Size**: ~50MB Docker image
 - **Response Time**: <2 seconds for most operations
 - **Bundle Size**: <50KB gzipped frontend
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -250,11 +250,11 @@ Enable debug logging:
 export RUST_LOG=kagikanri=debug,tower_http=debug
 ```
 
-## 📄 License
+## License
 
 MIT License - see LICENSE file for details
 
-## 🤝 Acknowledgments
+## Acknowledgments
 
 - [pass](https://www.passwordstore.org/) - The standard Unix password manager
 - [GPG](https://gnupg.org/) - GNU Privacy Guard
